@@ -1,3 +1,7 @@
+
+
+```text
+
 forecast-guard/
 │
 ├── frontend/                         # React + Tailwind + Leaflet
@@ -119,3 +123,4 @@ forecast-guard/
 ├── requirements.txt
 ├── README.md
 └── DATA_SETUP.md
+```
