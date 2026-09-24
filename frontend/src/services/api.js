@@ -1,8 +1,8 @@
 const API_BASE_URL = "http://127.0.0.1:8000";
 
-export async function getForecastGrid(leadDay) {
+export async function getForecastMap(leadDay) {
   const response = await fetch(
-    `${API_BASE_URL}/api/forecast/grid?lead_day=${leadDay}`
+    `${API_BASE_URL}/api/forecast/map?lead_day=${leadDay}`
   );
 
   if (!response.ok) {

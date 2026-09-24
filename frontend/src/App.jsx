@@ -5,8 +5,9 @@ import DaySelector from "./components/DaySelector";
 import MapLegend from "./components/MapLegend";
 import GridInfoPanel from "./components/GridInfoPanel";
 
-import { getForecastGrid } from "./services/api";
+import { getForecastMap } from "./services/api";
 
+const TOTAL_INDIA_GRID_CELLS = 4651;
 
 function App() {
   const [leadDay, setLeadDay] = useState(1);
@@ -27,7 +28,7 @@ function App() {
       setLoading(true);
       setError(null);
 
-      const data = await getForecastGrid(day);
+      const data = await getForecastMap(day);
 
       setForecast(data);
       setCells(data.cells || []);
@@ -162,6 +163,7 @@ function App() {
             <GridInfoPanel
               cell={selectedCell}
               leadDay={leadDay}
+              validDate={forecast?.valid_date}
             />
 
 
@@ -191,11 +193,21 @@ function App() {
 
                   <div className="flex justify-between">
                     <span className="text-slate-500">
-                      Grid Cells
+                      Total India Grid Cells
                     </span>
 
                     <span className="font-semibold">
-                      {forecast.cells.length}
+                      {TOTAL_INDIA_GRID_CELLS}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">
+                      Forecast Data Available
+                    </span>
+
+                    <span className="font-semibold">
+                      {forecast.forecast_data_available ?? forecast.cells?.length ?? 0}
                     </span>
                   </div>
 

@@ -1,4 +1,18 @@
-export default function GridInfoPanel({ cell, leadDay }) {
+function formatValue(value, digits = 2) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(digits) : "N/A";
+}
+
+function getCellValue(cell, key, digits = 2, suffix = "") {
+  if (cell?.forecast_unavailable || cell == null || !Object.prototype.hasOwnProperty.call(cell, key) || !Number.isFinite(Number(cell[key]))) {
+    return "Forecast unavailable";
+  }
+
+  const value = Number(cell[key]);
+  return `${value.toFixed(digits)}${suffix}`;
+}
+
+export default function GridInfoPanel({ cell, leadDay, validDate }) {
   if (!cell) {
     return (
       <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -38,11 +52,21 @@ export default function GridInfoPanel({ cell, leadDay }) {
 
         <div className="flex justify-between">
           <span className="text-slate-500">
+            Valid Date
+          </span>
+
+          <span className="font-semibold">
+            {validDate || "Forecast unavailable"}
+          </span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-slate-500">
             Latitude
           </span>
 
           <span className="font-semibold">
-            {Number(cell.latitude).toFixed(2)}
+            {cell.latitude != null ? formatValue(cell.latitude) : "Forecast unavailable"}
           </span>
         </div>
 
@@ -52,7 +76,7 @@ export default function GridInfoPanel({ cell, leadDay }) {
           </span>
 
           <span className="font-semibold">
-            {Number(cell.longitude).toFixed(2)}
+            {cell.longitude != null ? formatValue(cell.longitude) : "Forecast unavailable"}
           </span>
         </div>
 
@@ -62,7 +86,7 @@ export default function GridInfoPanel({ cell, leadDay }) {
           </span>
 
           <span className="font-semibold text-blue-600">
-            {Number(cell.rainfall_mm).toFixed(1)} mm
+            {cell.forecast_unavailable || !Number.isFinite(Number(cell.rainfall_mm)) ? "Forecast unavailable" : `${Number(cell.rainfall_mm).toFixed(1)} mm`}
           </span>
         </div>
 
@@ -72,7 +96,7 @@ export default function GridInfoPanel({ cell, leadDay }) {
           </span>
 
           <span className="font-semibold">
-            {Number(cell.temperature_c).toFixed(1)} °C
+            {getCellValue(cell, "temperature_c", 1, " °C")}
           </span>
         </div>
 
@@ -82,7 +106,7 @@ export default function GridInfoPanel({ cell, leadDay }) {
           </span>
 
           <span className="font-semibold">
-            {Number(cell.humidity_percent).toFixed(1)} %
+            {getCellValue(cell, "humidity_percent", 1, " %")}
           </span>
         </div>
 
@@ -92,7 +116,17 @@ export default function GridInfoPanel({ cell, leadDay }) {
           </span>
 
           <span className="font-semibold">
-            {Number(cell.pressure_hpa).toFixed(1)} hPa
+            {getCellValue(cell, "pressure_hpa", 1, " hPa")}
+          </span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-slate-500">
+            Wind Speed
+          </span>
+
+          <span className="font-semibold">
+            {getCellValue(cell, "wind_speed_kmh", 1, " km/h")}
           </span>
         </div>
       </div>

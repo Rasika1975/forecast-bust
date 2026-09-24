@@ -134,6 +134,77 @@ def get_raw_forecast():
 # DAILY GRID FORECAST
 # ==================================================
 
+def build_daily_forecast_payload(
+    df: pd.DataFrame,
+    lead_day: int
+):
+    start_date = (
+        df["time"]
+        .min()
+        .normalize()
+    )
+
+    target_date = (
+        start_date
+        + pd.Timedelta(
+            days=lead_day - 1
+        )
+    )
+
+    day_df = df[
+        df["time"].dt.normalize()
+        == target_date
+    ].copy()
+
+    if day_df.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No forecast data "
+                f"available for Day {lead_day}"
+            )
+        )
+
+    daily = (
+        day_df
+        .groupby(
+            [
+                "cell_id",
+                "latitude",
+                "longitude"
+            ],
+            as_index=False
+        )
+        .agg({
+            "precipitation": "sum",
+            "temperature_2m": "mean",
+            "relative_humidity_2m": "mean",
+            "pressure_msl": "mean",
+            "wind_speed_10m": "mean"
+        })
+    )
+
+    daily = daily.rename(
+        columns={
+            "precipitation": "rainfall_mm",
+            "temperature_2m": "temperature_c",
+            "relative_humidity_2m": "humidity_percent",
+            "pressure_msl": "pressure_hpa",
+            "wind_speed_10m": "wind_speed_kmh"
+        }
+    )
+
+    return {
+        "forecast_start": start_date.strftime("%Y-%m-%d"),
+        "lead_day": lead_day,
+        "valid_date": target_date.strftime("%Y-%m-%d"),
+        "grid_resolution": "0.25 degree",
+        "cells": daily.to_dict(orient="records"),
+        "forecast_data_available": int(len(daily)),
+        "total_grid_cells": 4651,
+    }
+
+
 @app.get("/api/forecast/grid")
 def get_daily_grid_forecast(
 
@@ -148,126 +219,38 @@ def get_daily_grid_forecast(
     try:
 
         df = load_nwp_data()
+        payload = build_daily_forecast_payload(df, lead_day)
 
-        # ------------------------------------------
-        # Determine forecast start date
-        # ------------------------------------------
+        return payload
 
-        start_date = (
-            df["time"]
-            .min()
-            .normalize()
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
         )
 
-        target_date = (
-            start_date
-            + pd.Timedelta(
-                days=lead_day - 1
-            )
-        )
 
-        # ------------------------------------------
-        # Select requested day
-        # ------------------------------------------
+@app.get("/api/forecast/map")
+def get_forecast_map(
 
-        day_df = df[
-            df["time"].dt.normalize()
-            == target_date
-        ].copy()
+    lead_day: int = Query(
+        1,
+        ge=1,
+        le=10
+    )
 
-        if day_df.empty:
+):
 
-            raise HTTPException(
-                status_code=404,
-                detail=(
-                    f"No forecast data "
-                    f"available for Day {lead_day}"
-                )
-            )
+    try:
 
-        # ------------------------------------------
-        # Aggregate hourly → daily
-        # ------------------------------------------
+        df = load_nwp_data()
+        payload = build_daily_forecast_payload(df, lead_day)
 
-        daily = (
-            day_df
-            .groupby(
-                [
-                    "cell_id",
-                    "latitude",
-                    "longitude"
-                ],
-                as_index=False
-            )
-            .agg({
-
-                "precipitation":
-                    "sum",
-
-                "temperature_2m":
-                    "mean",
-
-                "relative_humidity_2m":
-                    "mean",
-
-                "pressure_msl":
-                    "mean",
-
-                "wind_speed_10m":
-                    "mean"
-            })
-        )
-
-        # ------------------------------------------
-        # Rename for API
-        # ------------------------------------------
-
-        daily = daily.rename(
-            columns={
-                "precipitation":
-                    "rainfall_mm",
-
-                "temperature_2m":
-                    "temperature_c",
-
-                "relative_humidity_2m":
-                    "humidity_percent",
-
-                "pressure_msl":
-                    "pressure_hpa",
-
-                "wind_speed_10m":
-                    "wind_speed_kmh"
-            }
-        )
-
-        # ------------------------------------------
-        # Response
-        # ------------------------------------------
-
-        return {
-
-            "forecast_start":
-                start_date.strftime(
-                    "%Y-%m-%d"
-                ),
-
-            "lead_day":
-                lead_day,
-
-            "valid_date":
-                target_date.strftime(
-                    "%Y-%m-%d"
-                ),
-
-            "grid_resolution":
-                "0.25 degree",
-
-            "cells":
-                daily.to_dict(
-                    orient="records"
-                )
-        }
+        return payload
 
     except HTTPException:
         raise
