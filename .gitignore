@@ -1,0 +1,51 @@
+@"
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# React / Node
+node_modules/
+dist/
+build/
+.vite/
+
+# Logs
+*.log
+
+# Large weather datasets
+*.nc
+*.nc4
+*.cdf
+*.grib
+*.grib2
+*.grb
+*.grb2
+
+# Large processed data
+data/raw/
+data/processed/
+data/imd/
+data/grid/
+
+# ML model files
+*.pkl
+*.pickle
+*.joblib
+*.onnx
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+"@ | Set-Content .gitignore

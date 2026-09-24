@@ -1,0 +1,14 @@
+@"
+fastapi
+uvicorn
+pandas
+numpy
+xarray
+netCDF4
+requests
+python-dotenv
+geopandas
+shapely
+pyproj
+pyogrio
+"@ | Set-Content requirements.txt
