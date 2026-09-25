@@ -62,6 +62,26 @@ export default function GridInfoPanel({ cell, leadDay, validDate }) {
 
         <div className="flex justify-between">
           <span className="text-slate-500">
+            State
+          </span>
+
+          <span className="max-w-[170px] text-right font-semibold">
+            {cell.state_name || "Forecast unavailable"}
+          </span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-slate-500">
+            Region
+          </span>
+
+          <span className="max-w-[170px] text-right font-semibold">
+            {cell.region || "Forecast unavailable"}
+          </span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-slate-500">
             Latitude
           </span>
 
@@ -86,7 +106,7 @@ export default function GridInfoPanel({ cell, leadDay, validDate }) {
           </span>
 
           <span className="font-semibold text-blue-600">
-            {cell.forecast_unavailable || !Number.isFinite(Number(cell.rainfall_mm)) ? "Forecast unavailable" : `${Number(cell.rainfall_mm).toFixed(1)} mm`}
+            {getCellValue(cell, "rainfall_mm", 1, " mm")}
           </span>
         </div>
 

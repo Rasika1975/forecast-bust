@@ -6,9 +6,31 @@ const levels = [
   { label: "> 100 mm", color: "#ef4444" },
 ];
 
+const mapLayers = [
+  { label: "Rainfall Forecast", active: true },
+  { label: "Bust Risk", active: false },
+  { label: "Confidence", active: false },
+];
+
 export default function MapLegend() {
   return (
-    <div className="absolute bottom-4 left-4 z-[1000] rounded-xl bg-white p-4 shadow-lg">
+    <div className="absolute bottom-4 left-4 z-1000 rounded-xl bg-white p-4 shadow-lg">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Map layers
+      </p>
+
+      <div className="mb-4 space-y-1 border-b border-slate-200 pb-3">
+        {mapLayers.map((layer) => (
+          <div
+            key={layer.label}
+            className={`flex items-center justify-between gap-4 text-xs ${layer.active ? "font-semibold text-slate-800" : "text-slate-400"}`}
+          >
+            <span>{layer.label}</span>
+            <span>{layer.active ? "Active" : "Unavailable"}</span>
+          </div>
+        ))}
+      </div>
+
       <p className="mb-2 text-sm font-bold text-slate-800">
         Forecast Rainfall
       </p>
