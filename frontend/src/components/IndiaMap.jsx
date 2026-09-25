@@ -5,116 +5,18 @@ import L from "leaflet";
 import {
   GeoJSON,
   MapContainer,
-  Marker,
-  Pane,
   TileLayer,
   useMap,
 } from "react-leaflet";
 
 
 function getRainfallColor(rainfall) {
-  if (rainfall < 5) return "#dcfce7";
-  if (rainfall < 20) return "#86efac";
-  if (rainfall < 50) return "#fde047";
-  if (rainfall < 100) return "#fb923c";
+  const r = Number(rainfall ?? 0);
+  if (r < 5) return "#dcfce7";
+  if (r < 20) return "#86efac";
+  if (r < 50) return "#fde047";
+  if (r < 100) return "#fb923c";
   return "#ef4444";
-}
-
-
-function getStateName(feature) {
-  return feature?.properties?.ST_NM || feature?.properties?.state_name || null;
-}
-
-
-const REGION_BY_STATE_ID = Object.freeze({
-  "IN-JK": "North India",
-  "IN-LA": "North India",
-  "IN-HP": "North India",
-  "IN-PB": "North India",
-  "IN-HR": "North India",
-  "IN-CH": "North India",
-  "IN-DL": "North India",
-  "IN-UT": "North India",
-  "IN-UP": "North India",
-  "IN-RJ": "West India",
-  "IN-GJ": "West India",
-  "IN-MH": "West India",
-  "IN-GA": "West India",
-  "IN-DD": "West India",
-  "IN-DN": "West India",
-  "IN-MP": "Central India",
-  "IN-CT": "Central India",
-  "IN-BR": "East India",
-  "IN-JH": "East India",
-  "IN-OR": "East India",
-  "IN-WB": "East India",
-  "IN-AR": "Northeast India",
-  "IN-AS": "Northeast India",
-  "IN-ML": "Northeast India",
-  "IN-MN": "Northeast India",
-  "IN-MZ": "Northeast India",
-  "IN-NL": "Northeast India",
-  "IN-SK": "Northeast India",
-  "IN-TR": "Northeast India",
-  "IN-AP": "South India",
-  "IN-KA": "South India",
-  "IN-KL": "South India",
-  "IN-TG": "South India",
-  "IN-TN": "South India",
-  "IN-PY": "South India",
-  "IN-AN": "Island Territories",
-  "IN-LD": "Island Territories",
-});
-
-
-function getStateInfo(feature) {
-  const properties = feature?.properties;
-  const stateName = getStateName(feature);
-  if (!stateName) return null;
-
-  return {
-    stateName,
-    region: REGION_BY_STATE_ID[properties?.ST_ID] || null,
-  };
-}
-
-
-function getStateLabelIcon(stateName) {
-  return L.divIcon({
-    className: "state-label-icon",
-    html: `<span>${stateName}</span>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
-}
-
-
-function getOuterRings(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "Polygon") return [geometry.coordinates[0]];
-  if (geometry.type === "MultiPolygon") {
-    return geometry.coordinates.map((polygon) => polygon[0]);
-  }
-  return [];
-}
-
-
-function findStateInfo(feature, boundaryFeatures) {
-  const latitude = Number(feature?.properties?.latitude ?? 0);
-  const longitude = Number(feature?.properties?.longitude ?? 0);
-  const candidatePoints = [
-    [longitude, latitude],
-    ...getOuterRings(feature.geometry).flat(),
-  ];
-  const match = boundaryFeatures.find((boundaryFeature) => (
-    candidatePoints.some((coordinates) => (
-      booleanPointInPolygon(point(coordinates), boundaryFeature, {
-        ignoreBoundary: false,
-      })
-    ))
-  ));
-
-  return getStateInfo(match);
 }
 
 
@@ -123,10 +25,8 @@ function MapBoundsController({ geoJson }) {
 
   useEffect(() => {
     if (!geoJson) return;
-
     const layer = L.geoJSON(geoJson);
     const bounds = layer.getBounds();
-
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [18, 18], maxZoom: 5.2 });
       requestAnimationFrame(() => map.invalidateSize());
@@ -136,41 +36,34 @@ function MapBoundsController({ geoJson }) {
   return null;
 }
 
-
-export default function IndiaMap({ cells, onCellSelect }) {
+export default function IndiaMap({
+  cells = [],
+  selectedCell,
+  onCellSelect,
+  viewMode = "risk",
+  riskFilter = "all",
+  regionFilter = "all"
+}) {
   const [gridGeoJson, setGridGeoJson] = useState(null);
   const [indiaBoundary, setIndiaBoundary] = useState(null);
 
   useEffect(() => {
     fetch("/data/india_grid.geojson")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Failed to load grid GeoJSON: ${response.status}`);
-        }
-        return response.json();
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load grid: ${res.status}`);
+        return res.json();
       })
       .then((data) => setGridGeoJson(data))
-      .catch((error) => {
-        console.error("Grid GeoJSON load failed:", error);
-      });
+      .catch((err) => console.error("Grid GeoJSON error:", err));
 
     fetch("/data/india.geojson")
-      .then((response) => {
-        if (!response.ok) return null;
-        return response.json();
-      })
-      .then((data) => {
-        if (data) setIndiaBoundary(data);
-      })
-      .catch((error) => {
-        console.warn("India boundary GeoJSON not loaded:", error);
-      });
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) setIndiaBoundary(data); })
+      .catch((err) => console.warn("India boundary warning:", err));
   }, []);
 
-  const forecastByCell = useMemo(() => {
-    return new Map(
-      (cells || []).map((cell) => [String(cell.cell_id), cell])
-    );
+  const cellDataMap = useMemo(() => {
+    return new Map(cells.map((c) => [String(c.cell_id), c]));
   }, [cells]);
 
   const boundaryFeatures = useMemo(
@@ -205,37 +98,51 @@ export default function IndiaMap({ cells, onCellSelect }) {
 
   const styleFeature = (feature) => {
     const cellId = feature?.properties?.cell_id;
-    const cell = forecastByCell.get(String(cellId));
+    const cell = cellDataMap.get(String(cellId));
+    const isSelected = selectedCell && String(selectedCell.cell_id) === String(cellId);
 
     if (!cell) {
       return {
-        color: "#64748b",
-        weight: 0.35,
+        color: "#334155",
+        weight: 0.7,
         fillColor: "#d1d5db",
-        fillOpacity: 0.18,
+        fillOpacity: 0.8,
       };
     }
 
-    const rainfall = Number(cell?.rainfall_mm ?? 0);
+    // Apply Filter Dimming
+    let matchesFilter = true;
+    if (riskFilter === "high_risk" && !["high", "very_high"].includes(cell.risk_level)) {
+      matchesFilter = false;
+    } else if (riskFilter === "moderate_plus" && !["moderate", "high", "very_high"].includes(cell.risk_level)) {
+      matchesFilter = false;
+    }
+    if (regionFilter !== "all" && cell.region !== regionFilter) {
+      matchesFilter = false;
+    }
+
+    let fillColor;
+    if (viewMode === "risk") {
+      fillColor = getRiskColor(cell.bust_probability);
+    } else {
+      fillColor = getRainfallColor(cell.rainfall_mm);
+    }
 
     return {
-      color: "#475569",
-      weight: 0.35,
+      color: "#334155",
+      weight: 0.7,
       fillColor: getRainfallColor(rainfall),
-      fillOpacity: 0.42,
+      fillOpacity: 0.65,
     };
   };
 
   const onEachFeature = (feature, layer) => {
     const cellId = feature?.properties?.cell_id;
     const cell = forecastByCell.get(String(cellId));
-    const stateInfo = findStateInfo(feature, boundaryFeatures);
     const geoCell = {
       cell_id: cellId,
       latitude: Number(feature?.properties?.latitude ?? 0),
       longitude: Number(feature?.properties?.longitude ?? 0),
-      state_name: stateInfo?.stateName || null,
-      region: stateInfo?.region || null,
       forecast_unavailable: !cell,
       ...(cell || {}),
     };
@@ -245,7 +152,7 @@ export default function IndiaMap({ cells, onCellSelect }) {
     const rainfall = Number(geoCell.rainfall_mm ?? 0);
 
     layer.bindPopup(`
-      <div class="popup-content">
+      <div class="min-w-[180px]">
         <h3 class="font-bold">${geoCell.cell_id}</h3>
         <p>Latitude: ${lat.toFixed(2)}</p>
         <p>Longitude: ${lon.toFixed(2)}</p>
@@ -255,7 +162,21 @@ export default function IndiaMap({ cells, onCellSelect }) {
       </div>
     `);
 
-    layer.on({ click: () => onCellSelect(geoCell) });
+    layer.on({
+      click: () => {
+        if (cell && onCellSelect) {
+          onCellSelect(cell);
+        }
+      },
+      mouseover: (e) => {
+        const l = e.target;
+        l.setStyle({ weight: 2.0, color: "#0f172a" });
+      },
+      mouseout: (e) => {
+        const l = e.target;
+        l.setStyle(styleFeature(feature));
+      },
+    });
   };
 
   return (
@@ -271,39 +192,26 @@ export default function IndiaMap({ cells, onCellSelect }) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {gridGeoJson && (
-        <>
+      {indiaBoundary && (
+        <GeoJSON
+          data={indiaBoundary}
+          style={{
+            color: "#0f172a",
+            weight: 2,
+            fillColor: "transparent",
+            fillOpacity: 0,
+          }}
+        />
+      )}
+
+        {gridGeoJson && (
           <GeoJSON
+            key={`${viewMode}-${riskFilter}-${regionFilter}-${selectedCell?.cell_id || ''}-${cells.length}`}
             data={gridGeoJson}
             style={styleFeature}
             onEachFeature={onEachFeature}
           />
-          {indiaBoundary && (
-            <Pane
-              name="state-boundaries"
-              style={{ pointerEvents: "none", zIndex: 410 }}
-            >
-              <GeoJSON
-                data={indiaBoundary}
-                interactive={false}
-                style={{
-                  color: "#164e63",
-                  weight: 1.1,
-                  fillColor: "transparent",
-                  fillOpacity: 0,
-                }}
-              />
-            </Pane>
-          )}
-          {stateLabels.map(({ stateName, position }) => (
-            <Marker
-              key={stateName}
-              position={position}
-              icon={getStateLabelIcon(stateName)}
-              interactive={false}
-            />
-          ))}
-          <MapBoundsController geoJson={indiaBoundary || gridGeoJson} />
+          <MapBoundsController geoJson={gridGeoJson} />
         </>
       )}
     </MapContainer>

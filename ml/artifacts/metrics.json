@@ -1,0 +1,122 @@
+{
+  "Day 1": {
+    "lead_day": 1,
+    "pr_auc": 0.291,
+    "roc_auc": 0.649,
+    "recall": 0.025,
+    "precision": 0.575,
+    "f1": 0.047,
+    "brier_score": 0.1431,
+    "ece": 0.0203,
+    "samples": 9302,
+    "actual_busts": 1707
+  },
+  "Day 2": {
+    "lead_day": 2,
+    "pr_auc": 0.303,
+    "roc_auc": 0.655,
+    "recall": 0.027,
+    "precision": 0.681,
+    "f1": 0.052,
+    "brier_score": 0.1441,
+    "ece": 0.021,
+    "samples": 9302,
+    "actual_busts": 1738
+  },
+  "Day 3": {
+    "lead_day": 3,
+    "pr_auc": 0.324,
+    "roc_auc": 0.675,
+    "recall": 0.028,
+    "precision": 0.645,
+    "f1": 0.053,
+    "brier_score": 0.145,
+    "ece": 0.0255,
+    "samples": 9302,
+    "actual_busts": 1770
+  },
+  "Day 4": {
+    "lead_day": 4,
+    "pr_auc": 0.313,
+    "roc_auc": 0.678,
+    "recall": 0.028,
+    "precision": 0.671,
+    "f1": 0.055,
+    "brier_score": 0.1416,
+    "ece": 0.0193,
+    "samples": 9302,
+    "actual_busts": 1725
+  },
+  "Day 5": {
+    "lead_day": 5,
+    "pr_auc": 0.32,
+    "roc_auc": 0.692,
+    "recall": 0.026,
+    "precision": 0.529,
+    "f1": 0.05,
+    "brier_score": 0.1411,
+    "ece": 0.0213,
+    "samples": 9302,
+    "actual_busts": 1729
+  },
+  "Day 6": {
+    "lead_day": 6,
+    "pr_auc": 0.323,
+    "roc_auc": 0.696,
+    "recall": 0.03,
+    "precision": 0.654,
+    "f1": 0.058,
+    "brier_score": 0.1422,
+    "ece": 0.0241,
+    "samples": 9302,
+    "actual_busts": 1753
+  },
+  "Day 7": {
+    "lead_day": 7,
+    "pr_auc": 0.335,
+    "roc_auc": 0.702,
+    "recall": 0.042,
+    "precision": 0.626,
+    "f1": 0.079,
+    "brier_score": 0.1382,
+    "ece": 0.0197,
+    "samples": 9302,
+    "actual_busts": 1709
+  },
+  "Day 8": {
+    "lead_day": 8,
+    "pr_auc": 0.314,
+    "roc_auc": 0.687,
+    "recall": 0.036,
+    "precision": 0.53,
+    "f1": 0.068,
+    "brier_score": 0.1407,
+    "ece": 0.0217,
+    "samples": 9302,
+    "actual_busts": 1720
+  },
+  "Day 9": {
+    "lead_day": 9,
+    "pr_auc": 0.304,
+    "roc_auc": 0.689,
+    "recall": 0.044,
+    "precision": 0.477,
+    "f1": 0.08,
+    "brier_score": 0.1373,
+    "ece": 0.0163,
+    "samples": 9302,
+    "actual_busts": 1661
+  },
+  "Day 10": {
+    "lead_day": 10,
+    "pr_auc": 0.318,
+    "roc_auc": 0.708,
+    "recall": 0.055,
+    "precision": 0.545,
+    "f1": 0.1,
+    "brier_score": 0.1342,
+    "ece": 0.0158,
+    "samples": 9302,
+    "actual_busts": 1646
+  }
+}

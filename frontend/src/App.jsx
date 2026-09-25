@@ -1,16 +1,9 @@
 import { useEffect, useState } from "react";
-import "./App.css";
 
 import IndiaMap from "./components/IndiaMap";
 import DaySelector from "./components/DaySelector";
 import GridInfoPanel from "./components/GridInfoPanel";
-import MapLegend from "./components/MapLegend";
-import {
-  AnalyticsGrid,
-  InsightPanel,
-  MetricCard,
-  StatusBanner,
-} from "./components/DashboardWidgets";
+
 import { getForecastMap } from "./services/api";
 
 const TOTAL_INDIA_GRID_CELLS = 4651;
@@ -18,183 +11,240 @@ const TOTAL_INDIA_GRID_CELLS = 4651;
 function App() {
   const [leadDay, setLeadDay] = useState(1);
   const [forecast, setForecast] = useState(null);
+
   const [cells, setCells] = useState([]);
   const [selectedCell, setSelectedCell] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
 
-    async function loadForecast() {
-      try {
-        setLoading(true);
-        setError(null);
+  async function loadForecast(day) {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const data = await getForecastMap(leadDay);
-        if (cancelled) return;
+      const data = await getForecastMap(day);
 
-        setForecast(data);
-        setCells(data.cells || []);
-        setSelectedCell(null);
-      } catch (requestError) {
-        if (cancelled) return;
+      setForecast(data);
+      setCells(data.cells || []);
+      setSelectedCell(null);
 
-        console.error(requestError);
-        setForecast(null);
-        setCells([]);
-        setSelectedCell(null);
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Unable to load forecast data."
-        );
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+
+    } finally {
+      setLoading(false);
     }
+  }
 
-    loadForecast();
 
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    loadForecast(leadDay);
   }, [leadDay]);
 
-  const availableCells = forecast?.forecast_data_available ?? cells.length;
 
   return (
-    <div className="dashboard-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true">FG</div>
-          <div>
-            <p className="brand-name">ForecastGuard <span>AI</span></p>
-            <p className="brand-subtitle">AI forecast bust detection for India</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-slate-100">
 
-        <div className="topbar-meta">
-          <div>
-            <span className="eyebrow">NWP run</span>
-            <strong>Forecast API</strong>
-          </div>
-          <div>
-            <span className="eyebrow">Horizon</span>
-            <strong>Day {leadDay} / 10</strong>
-          </div>
-          <div>
-            <span className="eyebrow">Valid date</span>
-            <strong>{forecast?.valid_date || "--"}</strong>
+      {/* HEADER */}
+      <header className="border-b bg-white">
+        <div className="mx-auto max-w-[1600px] px-6 py-5">
+
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+
+            <div>
+              <p className="text-sm font-medium text-blue-600">
+                Problem Statement 26079
+              </p>
+
+              <h1 className="text-2xl font-bold text-slate-900">
+                Forecast Guard AI
+              </h1>
+
+              <p className="text-sm text-slate-500">
+                AI-Based Forecast Bust Detection
+              </p>
+            </div>
+
+            {forecast && (
+              <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
+                <p className="text-slate-500">
+                  Forecast Start
+                </p>
+
+                <p className="font-semibold text-slate-900">
+                  {forecast.forecast_start}
+                </p>
+              </div>
+            )}
+
           </div>
         </div>
       </header>
 
-      <main className="dashboard-content">
-        <StatusBanner loading={loading} error={error} forecast={forecast} />
 
-        <section className="intro-row">
-          <div>
-            <p className="eyebrow accent-label">Operational view / India</p>
-            <h1>Forecast Guard</h1>
-            <p className="intro-copy">
-              Inspect daily rainfall guidance across the India forecast grid.
-              Model-derived reliability signals will appear when the ML service is connected.
+      {/* MAIN */}
+      <main className="mx-auto max-w-[1600px] space-y-5 px-6 py-6">
+
+        {/* TOP CONTROL */}
+        <section className="rounded-2xl bg-white p-5 shadow-sm">
+
+          <div className="mb-3">
+            <h2 className="text-lg font-bold text-slate-900">
+              Forecast Lead Time
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              Select the forecast day to view the ECMWF rainfall
+              forecast.
             </p>
           </div>
-          <div className="run-stamp">
-            <span className="eyebrow">Forecast start</span>
-            <strong>{forecast?.forecast_start || "--"}</strong>
-            <span>{forecast?.grid_resolution || "Awaiting data"}</span>
+
+          <DaySelector
+            selectedDay={leadDay}
+            onChange={setLeadDay}
+          />
+
+        </section>
+
+
+        {/* ERROR */}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
           </div>
-        </section>
+        )}
 
-        <section className="metric-grid" aria-label="Forecast summary">
-          <MetricCard
-            label="Lead time"
-            value={`Day ${leadDay}`}
-            detail={forecast?.valid_date ? `Valid ${forecast.valid_date}` : "Awaiting forecast"}
-            accent="cyan"
-          />
-          <MetricCard
-            label="Grid coverage"
-            value={availableCells.toLocaleString()}
-            detail={`of ${TOTAL_INDIA_GRID_CELLS.toLocaleString()} India cells`}
-            accent="green"
-          />
-          <MetricCard
-            label="Resolution"
-            value={forecast?.grid_resolution || "--"}
-            detail="Forecast grid spacing"
-            accent="amber"
-          />
-          <MetricCard
-            label="ML reliability"
-            value="Unavailable"
-            detail="ML model not available yet"
-            accent="red"
-          />
-        </section>
 
-        <section className="dashboard-panel day-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Forecast horizon</p>
-              <h2>Lead day selector</h2>
-            </div>
-            <span className="panel-meta">1-10 days</span>
-          </div>
-          <DaySelector selectedDay={leadDay} onChange={setLeadDay} disabled={loading} />
-        </section>
+        {/* CONTENT */}
+        <section className="grid gap-5 lg:grid-cols-[1fr_340px]">
 
-        <section className="map-layout">
-          <article className="dashboard-panel map-panel">
-            <div className="panel-heading map-heading">
-              <div>
-                <p className="eyebrow">Live NWP field</p>
-                <h2>India rainfall forecast</h2>
-              </div>
-              <span className="panel-meta">Day {leadDay}</span>
-            </div>
-            <div className="map-frame">
+          {/* MAP */}
+          <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm">
+
+            <div className="h-[650px]">
+
               {loading ? (
-                <div className="map-state">
-                  <span className="loader" aria-hidden="true" />
-                  <strong>Loading forecast field</strong>
-                  <p>Fetching real data for Day {leadDay}.</p>
-                </div>
-              ) : error ? (
-                <div className="map-state map-state-error">
-                  <strong>Forecast field unavailable</strong>
-                  <p>{error}</p>
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center">
+                    <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+
+                    <p className="text-sm text-slate-500">
+                      Loading real ECMWF forecast...
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <IndiaMap cells={cells} onCellSelect={setSelectedCell} />
+                  <IndiaMap
+                    cells={cells}
+                    onCellSelect={setSelectedCell}
+                  />
+
                   <MapLegend />
                 </>
               )}
+
             </div>
-          </article>
 
-          <GridInfoPanel
-            cell={selectedCell}
-            leadDay={leadDay}
-            validDate={forecast?.valid_date}
-          />
+          </div>
+
+
+          {/* SIDE PANEL */}
+          <div className="space-y-5">
+
+            <GridInfoPanel
+              cell={selectedCell}
+              leadDay={leadDay}
+              validDate={forecast?.valid_date}
+            />
+
+
+            {/* Current forecast summary */}
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+
+              <p className="text-xs uppercase tracking-wide text-slate-400">
+                Current View
+              </p>
+
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                Day {leadDay}
+              </h2>
+
+              {forecast && (
+                <div className="mt-4 space-y-3 text-sm">
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">
+                      Valid Date
+                    </span>
+
+                    <span className="font-semibold">
+                      {forecast.valid_date}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">
+                      Total India Grid Cells
+                    </span>
+
+                    <span className="font-semibold">
+                      {TOTAL_INDIA_GRID_CELLS}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">
+                      Forecast Data Available
+                    </span>
+
+                    <span className="font-semibold">
+                      {forecast.forecast_data_available ?? forecast.cells?.length ?? 0}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">
+                      Resolution
+                    </span>
+
+                    <span className="font-semibold">
+                      {forecast.grid_resolution}
+                    </span>
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+
+
+            {/* ML layer placeholder — NOT prediction data */}
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                AI Reliability Layer
+              </p>
+
+              <h3 className="mt-2 font-semibold text-slate-700">
+                Forecast Bust Detection
+              </h3>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Bust probability and confidence maps will appear
+                here after the ML model is integrated.
+              </p>
+
+            </div>
+
+          </div>
+
         </section>
 
-        <AnalyticsGrid />
-
-        <section className="lower-grid">
-          <InsightPanel title="Error-prone regions">
-            Region-level error history and bust risk are not provided by the current backend.
-          </InsightPanel>
-          <InsightPanel title="Why is confidence low?">
-            Explanations require model outputs that are not available yet.
-          </InsightPanel>
-        </section>
       </main>
+
     </div>
   );
 }

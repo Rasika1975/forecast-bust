@@ -1,9 +1,17 @@
-const levels = [
-  { label: "< 5 mm", color: "#dcfce7" },
-  { label: "5–20 mm", color: "#86efac" },
-  { label: "20–50 mm", color: "#fde047" },
-  { label: "50–100 mm", color: "#fb923c" },
-  { label: "> 100 mm", color: "#ef4444" },
+const riskLevels = [
+  { label: "0% – 20% (Very Low Risk / 80-100% Confidence)", color: "#10b981", badge: "High Confidence" },
+  { label: "20% – 40% (Low Risk / 60-80% Confidence)", color: "#84cc16", badge: "Moderate High" },
+  { label: "40% – 60% (Moderate Risk / 40-60% Confidence)", color: "#f59e0b", badge: "Caution" },
+  { label: "60% – 80% (High Risk / 20-40% Confidence)", color: "#f97316", badge: "Elevated Danger" },
+  { label: "80% – 100% (Very High Risk / 0-20% Confidence)", color: "#ef4444", badge: "Bust Alert" },
+];
+
+const rainLevels = [
+  { label: "< 5 mm (Trace / Dry)", color: "#dcfce7" },
+  { label: "5 – 20 mm (Light Rain)", color: "#86efac" },
+  { label: "20 – 50 mm (Moderate Rain)", color: "#fde047" },
+  { label: "50 – 100 mm (Heavy Rain)", color: "#fb923c" },
+  { label: "> 100 mm (Extreme Rain)", color: "#ef4444" },
 ];
 
 const mapLayers = [
@@ -12,25 +20,12 @@ const mapLayers = [
   { label: "Confidence", active: false },
 ];
 
-export default function MapLegend() {
+export default function MapLegend({ viewMode = "risk" }) {
+  const isRiskMode = viewMode === "risk";
+  const levels = isRiskMode ? riskLevels : rainLevels;
+
   return (
-    <div className="absolute bottom-4 left-4 z-1000 rounded-xl bg-white p-4 shadow-lg">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Map layers
-      </p>
-
-      <div className="mb-4 space-y-1 border-b border-slate-200 pb-3">
-        {mapLayers.map((layer) => (
-          <div
-            key={layer.label}
-            className={`flex items-center justify-between gap-4 text-xs ${layer.active ? "font-semibold text-slate-800" : "text-slate-400"}`}
-          >
-            <span>{layer.label}</span>
-            <span>{layer.active ? "Active" : "Unavailable"}</span>
-          </div>
-        ))}
-      </div>
-
+    <div className="absolute bottom-4 left-4 z-[1000] rounded-xl bg-white p-4 shadow-lg">
       <p className="mb-2 text-sm font-bold text-slate-800">
         Forecast Rainfall
       </p>
@@ -42,12 +37,20 @@ export default function MapLegend() {
             className="flex items-center gap-2 text-xs text-slate-600"
           >
             <span
-              className="h-4 w-4 rounded"
-              style={{ backgroundColor: level.color }}
+              className="h-3.5 w-3.5 rounded shadow-sm shrink-0 border border-black/10"
+              style={{ backgroundColor: lvl.color }}
             />
-            {level.label}
+            <span className="truncate font-medium">{lvl.label}</span>
           </div>
         ))}
+      </div>
+
+      <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-400">
+        {isRiskMode ? (
+          <p>Confidence = 1 - P(Bust). P90 calibrated risk threshold per cell.</p>
+        ) : (
+          <p>ECMWF IFS 0.25° 24-hr cumulative surface precipitation.</p>
+        )}
       </div>
     </div>
   );
