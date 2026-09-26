@@ -13,17 +13,18 @@ import { Badge } from "@/components/ui/badge";
 
 export default function VerificationModal({ isOpen, onClose }) {
   const [data, setData] = useState(null);
+  const [activeHazard, setActiveHazard] = useState("rain");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      getVerificationMetrics()
+      getVerificationMetrics(activeHazard)
         .then((res) => setData(res))
         .catch((err) => console.error("Metrics load failed:", err))
         .finally(() => setLoading(false));
     }
-  }, [isOpen]);
+  }, [isOpen, activeHazard]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -66,13 +67,39 @@ export default function VerificationModal({ isOpen, onClose }) {
 
           {/* Lead-wise Metrics Table */}
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <h3 className="font-bold text-slate-900 text-sm">
-                Lead-Time Verification Slices (Day 1 – Day 10)
-              </h3>
-              <Badge variant="outline" className="text-slate-500 text-[10px]">
-                Strictly Held-Out Test Data
-              </Badge>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Lead-Time Verification Slices (Day 1 – Day 10)
+                </h3>
+                <p className="text-xs text-slate-500">Evaluated on 9,302 test grid cells per lead day</p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setActiveHazard("rain")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                    activeHazard === "rain" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600"
+                  }`}
+                >
+                  🌧️ Rainfall
+                </button>
+                <button
+                  onClick={() => setActiveHazard("temp")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                    activeHazard === "temp" ? "bg-white text-amber-600 shadow-sm" : "text-slate-600"
+                  }`}
+                >
+                  🌡️ Heatwave Temp
+                </button>
+                <button
+                  onClick={() => setActiveHazard("wind")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                    activeHazard === "wind" ? "bg-white text-teal-600 shadow-sm" : "text-slate-600"
+                  }`}
+                >
+                  💨 Windstorm
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto border border-slate-200 rounded-xl">

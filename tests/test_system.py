@@ -101,3 +101,17 @@ def test_verification_metrics():
     assert "pr_auc" in d5
     assert "brier_score" in d5
     assert "recall" in d5
+
+
+def test_multihazard_forecast():
+    for h in ["rain", "temp", "wind"]:
+        res = client.get(f"/api/forecast/map?lead_day=1&hazard={h}")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["hazard"] == h
+        assert len(data["cells"]) == 4651
+        
+        summary_res = client.get(f"/api/summary?lead_day=1&hazard={h}")
+        assert summary_res.status_code == 200
+        summary_data = summary_res.json()
+        assert summary_data["hazard"] == h

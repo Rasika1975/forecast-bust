@@ -14,25 +14,28 @@ router = APIRouter(tags=["risk"])
 def get_risk_grid(
     lead_day: int = Query(1, ge=1, le=10),
     risk_level: Optional[str] = Query(None),
-    region: Optional[str] = Query(None)
+    region: Optional[str] = Query(None),
+    hazard: str = Query("rain")
 ):
     try:
         engine = get_engine()
         df = engine.get_lead_day_predictions(
             lead_day=lead_day,
             risk_filter=risk_level,
-            region_filter=region
+            region_filter=region,
+            hazard=hazard
         )
         
         records = df[[
             'cell_id', 'latitude', 'longitude', 'region', 'state',
-            'forecast_rainfall_mm', 'bust_probability', 'confidence',
-            'risk_level', 'valid_date'
+            'forecast_rainfall_mm', 'temperature_c', 'wind_speed_kmh',
+            'bust_probability', 'confidence', 'risk_level', 'valid_date'
         ]].to_dict(orient="records")
 
         return {
             "run_time": "2026-09-24T00:00:00Z",
             "lead_day": lead_day,
+            "hazard": hazard,
             "valid_date": records[0]['valid_date'] if records else None,
             "total_cells": len(records),
             "grid": records
@@ -44,11 +47,12 @@ def get_risk_grid(
 @router.get("/api/risk/cell/{cell_id}")
 def get_cell_risk(
     cell_id: str,
-    lead_day: int = Query(1, ge=1, le=10)
+    lead_day: int = Query(1, ge=1, le=10),
+    hazard: str = Query("rain")
 ):
     try:
         engine = get_engine()
-        detail = engine.get_cell_detail(cell_id, lead_day=lead_day)
+        detail = engine.get_cell_detail(cell_id, lead_day=lead_day, hazard=hazard)
         if not detail:
             raise HTTPException(status_code=404, detail=f"Cell {cell_id} not found for Day {lead_day}")
         return detail
@@ -59,10 +63,13 @@ def get_cell_risk(
 
 
 @router.get("/api/summary")
-def get_lead_summary(lead_day: int = Query(1, ge=1, le=10)):
+def get_lead_summary(
+    lead_day: int = Query(1, ge=1, le=10),
+    hazard: str = Query("rain")
+):
     try:
         engine = get_engine()
-        df = engine.get_lead_day_predictions(lead_day=lead_day)
+        df = engine.get_lead_day_predictions(lead_day=lead_day, hazard=hazard)
 
         total = len(df)
         high_risk_count = int(df['risk_level'].isin(['high', 'very_high']).sum())
@@ -83,6 +90,7 @@ def get_lead_summary(lead_day: int = Query(1, ge=1, le=10)):
 
         return {
             "lead_day": lead_day,
+            "hazard": hazard,
             "valid_date": df['valid_date'].iloc[0] if not df.empty else None,
             "total_cells": total,
             "high_risk_cells": high_risk_count,

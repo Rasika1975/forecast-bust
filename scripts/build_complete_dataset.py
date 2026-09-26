@@ -29,6 +29,8 @@ CLIMATE_PROFILES = {
     'Southern Coastal': (10.0, 12.0, 29.0, 78.0, 1008.0, 18.0),
     'Northern Himalayas': (15.0, 18.0, 17.0, 74.0, 980.0, 12.0),
     'Northwest Arid': (4.0, 8.0, 34.0, 48.0, 1001.0, 18.0),
+    'Islands': (28.0, 22.0, 28.5, 84.0, 1008.0, 22.0),
+    'Southern Peninsular': (16.0, 14.0, 29.0, 76.0, 1007.0, 16.0),
 }
 
 # Pre-extract numpy vectors for all cells
@@ -38,17 +40,17 @@ lons = grid['longitude'].values
 regions = grid['region'].values
 states = grid['state'].values
 
-prof_rain_mean = np.array([CLIMATE_PROFILES[r][0] for r in regions], dtype=np.float32)
-prof_rain_std  = np.array([CLIMATE_PROFILES[r][1] for r in regions], dtype=np.float32)
-prof_temp      = np.array([CLIMATE_PROFILES[r][2] for r in regions], dtype=np.float32)
-prof_rh        = np.array([CLIMATE_PROFILES[r][3] for r in regions], dtype=np.float32)
-prof_press     = np.array([CLIMATE_PROFILES[r][4] for r in regions], dtype=np.float32)
-prof_wind      = np.array([CLIMATE_PROFILES[r][5] for r in regions], dtype=np.float32)
+prof_rain_mean = np.array([CLIMATE_PROFILES.get(r, (15.0, 15.0, 28.0, 70.0, 1005.0, 15.0))[0] for r in regions], dtype=np.float32)
+prof_rain_std  = np.array([CLIMATE_PROFILES.get(r, (15.0, 15.0, 28.0, 70.0, 1005.0, 15.0))[1] for r in regions], dtype=np.float32)
+prof_temp      = np.array([CLIMATE_PROFILES.get(r, (15.0, 15.0, 28.0, 70.0, 1005.0, 15.0))[2] for r in regions], dtype=np.float32)
+prof_rh        = np.array([CLIMATE_PROFILES.get(r, (15.0, 15.0, 28.0, 70.0, 1005.0, 15.0))[3] for r in regions], dtype=np.float32)
+prof_press     = np.array([CLIMATE_PROFILES.get(r, (15.0, 15.0, 28.0, 70.0, 1005.0, 15.0))[4] for r in regions], dtype=np.float32)
+prof_wind      = np.array([CLIMATE_PROFILES.get(r, (15.0, 15.0, 28.0, 70.0, 1005.0, 15.0))[5] for r in regions], dtype=np.float32)
 
 spatial_pattern = (np.sin(lats * 1.5) * np.cos(lons * 1.2)).astype(np.float32)
 
 # 1. GENERATE HISTORICAL RUNS
-print("\n[1/5] Vectorized generation of historical forecast-observation pairs...", flush=True)
+print("\n[1/5] Vectorized generation of multi-hazard forecast-observation pairs...", flush=True)
 np.random.seed(42)
 
 historical_runs = [
@@ -67,8 +69,6 @@ for run_idx, run in enumerate(historical_runs):
         
         # Base rain across all cells
         base_rain = np.maximum(0.0, prof_rain_mean * synoptic_pulse + prof_rain_std * 0.4 * spatial_pattern)
-        
-        # Forecast rain: gamma distribution with shape 2
         fcst_rain = np.random.gamma(shape=1.5, scale=np.maximum(base_rain / 1.5, 0.4), size=n_cells).astype(np.float32)
         
         # Atmospheric variables
@@ -77,21 +77,31 @@ for run_idx, run in enumerate(historical_runs):
         press = prof_press - 0.08 * fcst_rain + np.random.normal(0, 0.5, size=n_cells).astype(np.float32)
         wind = prof_wind + 0.12 * fcst_rain + np.random.normal(0, 1.5, size=n_cells).astype(np.float32)
         
-        # Observation simulation with lead-dependent error & 10% bust events
-        is_bust = np.random.rand(n_cells) < (0.07 + 0.006 * lead_day)
-        normal_noise = np.random.normal(0, (1.8 + 1.1 * lead_day) * (1.0 + 0.02 * base_rain), size=n_cells).astype(np.float32)
-        
-        obs_rain = np.maximum(0.0, fcst_rain + normal_noise)
-        
-        # Where bust occurred, apply large discrepancy
-        high_fcst_mask = is_bust & (fcst_rain > 15.0)
+        # Observation simulation with lead-dependent error
+        is_bust_rain = np.random.rand(n_cells) < (0.07 + 0.006 * lead_day)
+        is_bust_temp = np.random.rand(n_cells) < (0.06 + 0.005 * lead_day)
+        is_bust_wind = np.random.rand(n_cells) < (0.065 + 0.0055 * lead_day)
+
+        # 1. Rain Obs & Error
+        normal_noise_rain = np.random.normal(0, (1.8 + 1.1 * lead_day) * (1.0 + 0.02 * base_rain), size=n_cells).astype(np.float32)
+        obs_rain = np.maximum(0.0, fcst_rain + normal_noise_rain)
+        high_fcst_mask = is_bust_rain & (fcst_rain > 15.0)
         obs_rain[high_fcst_mask] = fcst_rain[high_fcst_mask] * np.random.uniform(0.05, 0.25, size=np.sum(high_fcst_mask))
-        
-        low_fcst_mask = is_bust & (~high_fcst_mask)
+        low_fcst_mask = is_bust_rain & (~high_fcst_mask)
         obs_rain[low_fcst_mask] = fcst_rain[low_fcst_mask] + np.random.uniform(35.0, 95.0, size=np.sum(low_fcst_mask)) * (1.0 + 0.08 * lead_day)
-        
-        abs_err = np.abs(fcst_rain - obs_rain)
-        bias = fcst_rain - obs_rain
+        abs_err_rain = np.abs(fcst_rain - obs_rain)
+
+        # 2. Temp Obs & Error (Heatwave bust)
+        normal_noise_temp = np.random.normal(0, (0.5 + 0.25 * lead_day), size=n_cells).astype(np.float32)
+        obs_temp = temp + normal_noise_temp
+        obs_temp[is_bust_temp] += np.random.uniform(4.5, 9.0, size=np.sum(is_bust_temp)) * np.random.choice([-1, 1], size=np.sum(is_bust_temp))
+        abs_err_temp = np.abs(temp - obs_temp)
+
+        # 3. Wind Obs & Error (Windstorm bust)
+        normal_noise_wind = np.random.normal(0, (1.2 + 0.4 * lead_day), size=n_cells).astype(np.float32)
+        obs_wind = np.maximum(0.0, wind + normal_noise_wind)
+        obs_wind[is_bust_wind] += np.random.uniform(15.0, 38.0, size=np.sum(is_bust_wind))
+        abs_err_wind = np.abs(wind - obs_wind)
         
         batch_df = pd.DataFrame({
             'run_id': f"RUN_{run_idx:02d}",
@@ -109,8 +119,12 @@ for run_idx, run in enumerate(historical_runs):
             'pressure_hpa': np.round(press, 1),
             'wind_speed_kmh': np.round(wind, 1),
             'actual_rainfall': np.round(obs_rain, 1),
-            'forecast_error_mm': np.round(abs_err, 1),
-            'bias_mm': np.round(bias, 1)
+            'actual_temperature': np.round(obs_temp, 1),
+            'actual_wind': np.round(obs_wind, 1),
+            'forecast_error_mm': np.round(abs_err_rain, 1),
+            'forecast_error_temp': np.round(abs_err_temp, 1),
+            'forecast_error_wind': np.round(abs_err_wind, 1),
+            'bias_mm': np.round(fcst_rain - obs_rain, 1)
         })
         all_dfs.append(batch_df)
 
@@ -119,44 +133,50 @@ print(f"Generated {len(df_hist)} historical records.", flush=True)
 df_hist.to_csv(PROCESSED_DIR / "forecast_error.csv", index=False)
 print("Saved forecast_error.csv", flush=True)
 
-# 2. CALCULATE P80, P90, P95, MAE, BIAS PER CELL AND LEAD DAY
-print("\n[2/5] Calculating historical bust thresholds (P90) and error statistics...", flush=True)
+# 2. CALCULATE MULTI-HAZARD P90 THRESHOLDS
+print("\n[2/5] Calculating historical multi-hazard bust thresholds (P90)...", flush=True)
 stats = df_hist.groupby(['cell_id', 'lead_day']).agg(
     mae=('forecast_error_mm', 'mean'),
     bias=('bias_mm', 'mean'),
     p80=('forecast_error_mm', lambda x: np.percentile(x, 80)),
     p90=('forecast_error_mm', lambda x: np.percentile(x, 90)),
     p95=('forecast_error_mm', lambda x: np.percentile(x, 95)),
+    p90_temp=('forecast_error_temp', lambda x: np.percentile(x, 90)),
+    p90_wind=('forecast_error_wind', lambda x: np.percentile(x, 90)),
     sample_count=('forecast_error_mm', 'count')
 ).reset_index()
 
-# Add coordinates & region
 cell_meta = grid[['cell_id', 'latitude', 'longitude', 'region', 'state']]
 df_thresholds = stats.merge(cell_meta, on='cell_id', how='left')
 df_thresholds = df_thresholds.round({
-    'mae': 2, 'bias': 2, 'p80': 2, 'p90': 2, 'p95': 2
+    'mae': 2, 'bias': 2, 'p80': 2, 'p90': 2, 'p95': 2, 'p90_temp': 2, 'p90_wind': 2
 })
 df_thresholds.to_csv(PROCESSED_DIR / "bust_thresholds.csv", index=False)
 print(f"Saved bust_thresholds.csv for {len(df_thresholds)} cell-lead combinations.", flush=True)
-print("Mean P90 error threshold by lead day:", flush=True)
-print(df_thresholds.groupby('lead_day')[['mae', 'p90', 'p95']].mean(), flush=True)
 
 # 3. LABEL HISTORICAL RUNS
-print("\n[3/5] Assigning bust labels...", flush=True)
+print("\n[3/5] Assigning multi-hazard bust labels...", flush=True)
 df_merged = df_hist.merge(
-    df_thresholds[['cell_id', 'lead_day', 'p90', 'mae', 'bias']],
+    df_thresholds[['cell_id', 'lead_day', 'p90', 'p90_temp', 'p90_wind', 'mae', 'bias']],
     on=['cell_id', 'lead_day'],
     how='left'
 )
-df_merged['bust_label'] = (df_merged['forecast_error_mm'] > df_merged['p90']).astype(np.int8)
-bust_rate = df_merged['bust_label'].mean()
-print(f"Bust rate in labeled dataset: {bust_rate:.4f} (target ~10%)", flush=True)
+df_merged['bust_label_rain'] = (df_merged['forecast_error_mm'] > df_merged['p90']).astype(np.int8)
+df_merged['bust_label_temp'] = (df_merged['forecast_error_temp'] > df_merged['p90_temp']).astype(np.int8)
+df_merged['bust_label_wind'] = (df_merged['forecast_error_wind'] > df_merged['p90_wind']).astype(np.int8)
+
+# Default label for legacy compatibility
+df_merged['bust_label'] = df_merged['bust_label_rain']
+
+print(f"Bust rate (Rain) : {df_merged['bust_label_rain'].mean():.4f}", flush=True)
+print(f"Bust rate (Temp) : {df_merged['bust_label_temp'].mean():.4f}", flush=True)
+print(f"Bust rate (Wind) : {df_merged['bust_label_wind'].mean():.4f}", flush=True)
 df_merged.to_csv(PROCESSED_DIR / "bust_labels.csv", index=False)
 print("Saved bust_labels.csv", flush=True)
 
 # 4. GENERATE OPERATIONAL 10-DAY FORECAST FOR ACTIVE RUN
 print("\n[4/5] Generating operational 10-day ECMWF forecast (nwp_grid.csv)...", flush=True)
-init_time = pd.to_datetime("2026-09-24 00:00:00")
+init_time = pd.to_datetime(pd.Timestamp.now().strftime("%Y-%m-%d 00:00:00"))
 nwp_list = []
 
 for day_idx in range(10):
@@ -178,7 +198,6 @@ for day_idx in range(10):
     press = (prof_press - sys_influence * 12.0 + np.random.normal(0, 0.5, size=n_cells)).astype(np.float32)
     wind = (prof_wind + sys_influence * 28.0 + np.random.normal(0, 2.0, size=n_cells)).astype(np.float32)
     
-    # 4 time steps per day (00, 06, 12, 18 UTC)
     for h in [0, 6, 12, 18]:
         hour_time = day_date + pd.Timedelta(hours=h)
         nwp_df = pd.DataFrame({
@@ -198,4 +217,4 @@ full_nwp_df = pd.concat(nwp_list, ignore_index=True)
 full_nwp_df.to_csv(PROCESSED_DIR / "nwp_grid.csv", index=False)
 print(f"Saved operational nwp_grid.csv with {len(full_nwp_df)} rows.", flush=True)
 
-print("\n[5/5] All foundation datasets created successfully!", flush=True)
+print("\n[5/5] All multi-hazard foundation datasets created successfully!", flush=True)
