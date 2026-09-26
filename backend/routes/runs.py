@@ -6,19 +6,35 @@ from backend.scheduler import get_sync_status, run_live_fetch_and_inference
 
 router = APIRouter(tags=["runs"])
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+MODEL_FILE = BASE_DIR / "ml" / "artifacts" / "bust_model.joblib"
+LABELS_FILE = BASE_DIR / "data" / "processed" / "bust_labels.csv"
 
 
-@router.get("/health")
-def get_health():
+def _health_payload():
     sync = get_sync_status()
+    model_loaded = MODEL_FILE.exists()
+    labels_ready = LABELS_FILE.exists()
+    status = "healthy" if model_loaded and labels_ready else "degraded"
+
     return {
-        "status": "healthy",
+        "status": status,
         "service": "Forecast Guard AI",
-        "model_loaded": True,
+        "model_loaded": model_loaded,
+        "training_data_ready": labels_ready,
         "data_freshness": sync.get("status", "operational"),
         "last_sync": sync.get("last_sync"),
         "data_source": sync.get("data_source"),
     }
+
+
+@router.get("/health")
+def get_health():
+    return _health_payload()
+
+
+@router.get("/api/health")
+def get_api_health():
+    return _health_payload()
 
 
 @router.get("/api/runs/latest")
