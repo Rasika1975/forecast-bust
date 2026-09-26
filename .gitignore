@@ -1,4 +1,3 @@
-@"
 # Python
 venv/
 .venv/
@@ -28,17 +27,19 @@ build/
 *.grb
 *.grb2
 
-# Large processed data
+# Processed heavy temporary data (keep data/grid/ tracked)
 data/raw/
 data/processed/
 data/imd/
-data/grid/
+!data/grid/
+!data/grid/*
 
-# ML model files
+# ML model files (allow model artifacts in ml/artifacts)
 *.pkl
 *.pickle
 *.joblib
 *.onnx
+!ml/artifacts/*.joblib
 
 # IDE
 .vscode/
@@ -48,4 +49,3 @@ data/grid/
 .DS_Store
 Thumbs.db
 desktop.ini
-"@ | Set-Content .gitignore

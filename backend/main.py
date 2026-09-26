@@ -9,7 +9,7 @@ import pandas as pd
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from backend.routes import explanations, forecast, risk, runs, verification
+from backend.routes import explanations, forecast, health, risk, runs, verification
 from backend.scheduler import start_daily_scheduler
 
 
@@ -43,6 +43,7 @@ app.add_middleware(
 )
 
 # Include Routers
+app.include_router(health.router)
 app.include_router(runs.router)
 app.include_router(risk.router)
 app.include_router(explanations.router)
