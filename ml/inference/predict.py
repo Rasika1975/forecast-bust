@@ -12,7 +12,10 @@ from ml.explainability.shap_explainer import ShapExplainerService
 from ml.explainability.similar_events import SimilarEventsRetriever
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-MODEL_FILE = BASE_DIR / "ml" / "artifacts" / "bust_model.joblib"
+MODEL_FILE_RAIN = BASE_DIR / "ml" / "artifacts" / "bust_model.joblib"
+MODEL_FILE_TEMP = BASE_DIR / "ml" / "artifacts" / "bust_model_temp.joblib"
+MODEL_FILE_WIND = BASE_DIR / "ml" / "artifacts" / "bust_model_wind.joblib"
+
 NWP_FILE = BASE_DIR / "data" / "processed" / "nwp_grid.csv"
 GRID_FILE = BASE_DIR / "data" / "grid" / "india_grid_enriched.csv"
 PREDICTIONS_CACHE = BASE_DIR / "data" / "processed" / "operational_predictions.csv"
@@ -32,45 +35,56 @@ def get_risk_level(prob):
 
 
 class InferenceEngine:
-    def __init__(self, model_file=None, nwp_file=None):
-        self.model_file = model_file or MODEL_FILE
+    def __init__(self, nwp_file=None):
         self.nwp_file = nwp_file or NWP_FILE
         self._load_resources()
 
     def _load_resources(self):
-        bundle = joblib.load(self.model_file)
-        self.calibrated_model = bundle['calibrated_model']
-        self.feature_columns = bundle['feature_columns']
-        self.model_version = bundle.get('version', '1.2.0')
-        self.trained_at = bundle.get('trained_at', '2026-09-24T18:00:00Z')
+        # Load multi-hazard models
+        self.models = {}
+        for h_key, f_path in [('rain', MODEL_FILE_RAIN), ('temp', MODEL_FILE_TEMP), ('wind', MODEL_FILE_WIND)]:
+            if f_path.exists():
+                bundle = joblib.load(f_path)
+                self.models[h_key] = bundle['calibrated_model']
+            else:
+                bundle = joblib.load(MODEL_FILE_RAIN)
+                self.models[h_key] = bundle['calibrated_model']
+
+        bundle_rain = joblib.load(MODEL_FILE_RAIN)
+        self.feature_columns = bundle_rain['feature_columns']
+        self.model_version = bundle_rain.get('version', '1.2.0')
 
         self.feature_engineer = FeatureEngineer()
-        self.shap_service = ShapExplainerService(self.model_file)
+        self.shap_service = ShapExplainerService(MODEL_FILE_RAIN)
         self.similar_retriever = SimilarEventsRetriever()
         self.grid_df = pd.read_csv(GRID_FILE)
         self.grid_meta = {r['cell_id']: {'region': r['region'], 'state': r['state']} for _, r in self.grid_df.iterrows()}
 
-        # Generate or load operational predictions
         self._ensure_operational_predictions()
 
     def _ensure_operational_predictions(self):
         if PREDICTIONS_CACHE.exists():
-            print("Loading cached operational predictions...")
-            self.predictions_df = pd.read_csv(PREDICTIONS_CACHE)
-        else:
-            print("Generating operational 10-day predictions...")
-            self.run_full_inference()
+            df = pd.read_csv(PREDICTIONS_CACHE)
+            # Require at least 46,510 rows (4,651 cells * 10 lead days)
+            if len(df) >= 46510:
+                print("Loading cached operational predictions (4,651 cells)...")
+                self.predictions_df = df
+                return
+            print(f"Predictions cache incomplete ({len(df)} rows). Regenerating full predictions...")
+
+        self.run_full_inference()
 
     def run_full_inference(self):
-        """
-        Loads the active operational NWP forecast (10 days), computes features,
-        runs calibrated XGBoost inference, and caches the results.
-        """
+        # Auto-rebuild nwp_grid if missing or incomplete (<4651 cells)
+        if not self.nwp_file.exists() or pd.read_csv(self.nwp_file)['cell_id'].nunique() < 4651:
+            print("nwp_grid.csv missing or incomplete. Rebuilding full national dataset...")
+            import subprocess
+            subprocess.run([sys.executable, str(BASE_DIR / "scripts" / "build_complete_dataset.py")], check=True)
+
         raw_nwp = pd.read_csv(self.nwp_file)
         raw_nwp['time'] = pd.to_datetime(raw_nwp['time'])
         start_date = raw_nwp['time'].min().normalize()
 
-        # Aggregate hourly NWP data to daily
         daily_list = []
         for lead_day in range(1, 11):
             target_date = start_date + pd.Timedelta(days=lead_day - 1)
@@ -100,30 +114,44 @@ class InferenceEngine:
             daily_list.append(daily)
 
         df_daily = pd.concat(daily_list, ignore_index=True)
-        # Transform features
         df_features = self.feature_engineer.transform_dataframe(df_daily)
-
-        # Run inference
         X = df_features[self.feature_columns]
-        probs = self.calibrated_model.predict_proba(X)[:, 1]
 
-        df_features['bust_probability'] = np.round(probs, 3)
-        df_features['confidence'] = np.round(1.0 - probs, 3)
-        df_features['risk_level'] = [get_risk_level(p) for p in probs]
+        # Predict multi-hazard probabilities
+        for h_key in ['rain', 'temp', 'wind']:
+            model = self.models[h_key]
+            probs = model.predict_proba(X)[:, 1]
+            p_col = 'bust_probability' if h_key == 'rain' else f'bust_probability_{h_key}'
+            c_col = 'confidence' if h_key == 'rain' else f'confidence_{h_key}'
+            r_col = 'risk_level' if h_key == 'rain' else f'risk_level_{h_key}'
+
+            df_features[p_col] = np.round(probs, 3)
+            df_features[c_col] = np.round(1.0 - probs, 3)
+            df_features[r_col] = [get_risk_level(p) for p in probs]
+
         df_features['model_version'] = self.model_version
         df_features['forecast_start'] = start_date.strftime("%Y-%m-%d")
 
-        # Add region and state
         df_features['region'] = df_features['cell_id'].map(lambda cid: self.grid_meta.get(cid, {}).get('region', 'India'))
         df_features['state'] = df_features['cell_id'].map(lambda cid: self.grid_meta.get(cid, {}).get('state', 'Unknown'))
 
-        # Cache predictions
         df_features.to_csv(PREDICTIONS_CACHE, index=False)
         self.predictions_df = df_features
         print(f"Operational predictions cached: {len(df_features)} cells across 10 lead days.")
 
-    def get_lead_day_predictions(self, lead_day=1, risk_filter=None, region_filter=None):
+    def get_lead_day_predictions(self, lead_day=1, risk_filter=None, region_filter=None, hazard='rain'):
         df = self.predictions_df[self.predictions_df['lead_day'] == lead_day].copy()
+
+        # Map hazard specific columns to primary bust_probability & risk_level
+        p_col = 'bust_probability' if hazard == 'rain' else f'bust_probability_{hazard}'
+        c_col = 'confidence' if hazard == 'rain' else f'confidence_{hazard}'
+        r_col = 'risk_level' if hazard == 'rain' else f'risk_level_{hazard}'
+
+        if p_col in df.columns:
+            df['bust_probability'] = df[p_col]
+            df['confidence'] = df[c_col]
+            df['risk_level'] = df[r_col]
+
         if risk_filter and risk_filter != 'all':
             if risk_filter == 'high_risk':
                 df = df[df['risk_level'].isin(['high', 'very_high'])]
@@ -137,7 +165,7 @@ class InferenceEngine:
 
         return df
 
-    def get_cell_detail(self, cell_id, lead_day=1):
+    def get_cell_detail(self, cell_id, lead_day=1, hazard='rain'):
         cell_match = self.predictions_df[
             (self.predictions_df['cell_id'] == cell_id) &
             (self.predictions_df['lead_day'] == lead_day)
@@ -148,10 +176,15 @@ class InferenceEngine:
         row = cell_match.iloc[0]
         row_dict = row.to_dict()
 
-        # SHAP explanation
-        expl = self.shap_service.explain_row(row_dict, top_k=4)
+        p_col = 'bust_probability' if hazard == 'rain' else f'bust_probability_{hazard}'
+        c_col = 'confidence' if hazard == 'rain' else f'confidence_{hazard}'
+        r_col = 'risk_level' if hazard == 'rain' else f'risk_level_{hazard}'
 
-        # Similar events
+        prob = float(row.get(p_col, row['bust_probability']))
+        conf = float(row.get(c_col, row['confidence']))
+        r_lvl = str(row.get(r_col, row['risk_level']))
+
+        expl = self.shap_service.explain_row(row_dict, top_k=4)
         similar = self.similar_retriever.find_similar(row_dict, k=3)
 
         return {
@@ -160,6 +193,7 @@ class InferenceEngine:
             "longitude": float(row['longitude']),
             "region": str(row.get('region', 'India')),
             "state": str(row.get('state', 'Unknown')),
+            "hazard": hazard,
             "lead_day": int(row['lead_day']),
             "valid_date": str(row['valid_date']),
             "forecast_rainfall_mm": float(row['forecast_rainfall_mm']),
@@ -167,18 +201,16 @@ class InferenceEngine:
             "humidity_percent": float(row['humidity_percent']),
             "pressure_hpa": float(row['pressure_hpa']),
             "wind_speed_kmh": float(row['wind_speed_kmh']),
-            "bust_probability": float(row['bust_probability']),
-            "confidence": float(row['confidence']),
-            "risk_level": str(row['risk_level']),
+            "bust_probability": prob,
+            "confidence": conf,
+            "risk_level": r_lvl,
             "historical_p90_error_mm": float(row.get('historical_p90_error', 25.0)),
-            "historical_mae_mm": float(row.get('historical_mae', 12.0)),
             "top_reasons": expl['top_reasons'],
             "drivers": expl['drivers'],
             "similar_historical_events": similar
         }
 
 
-# Singleton engine instance
 _engine_instance = None
 
 def get_engine():
