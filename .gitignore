@@ -32,7 +32,9 @@ build/
 data/raw/
 data/processed/
 data/imd/
-data/grid/
+data/grid/*
+!data/grid/india_grid.csv
+!data/grid/india_grid.geojson
 
 # ML model files
 *.pkl
