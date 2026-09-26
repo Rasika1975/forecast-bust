@@ -74,13 +74,14 @@ def load_nwp_data():
 # ==================================================
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {
+    response = {
         "status": "running",
         "project": "Forecast Guard",
         "problem_statement": "26079",
     }
+    return response
 
 
 # ==================================================
